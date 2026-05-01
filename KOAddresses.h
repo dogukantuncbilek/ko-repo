@@ -1,194 +1,178 @@
 #pragma once
 /* ===================================================================
    KOAddresses.h — Knight Online Pointer & Offset Table
-   Version: 2604
-   Source:  Static analysis of KnightOnLine_unpacked.exe (2604, 18.9 MB)
-   Migration from: 2602 → 2604 (patch April 2026)
+   Version: 2605
+   Source:  Static analysis + runtime verification of KnightOnLine_unpacked.exe (2605)
+   Migration from: 2604 → 2605 (patch May 2026)
    ===================================================================
 
-   DELTA PATTERNS (2602 → 2604):
+   DELTA PATTERNS (2604 → 2605):
      .rdata  : +0x1000 (uniform)
-     .data   : +0x1000 (uniform, XREF-verified)
-     .text   : per-function
-               0x00401000..0x00720000 = +0x10  (SEH prologue eklendi)
-               0x00720000+            = +0x260 (yeni kod insert)
-               KO_ITEMBASIC_LOOKUP    = -0x10  (istisnai)
-               KO_AES_CRYPT_FUNC bölgesi tamamen yeniden yapılandı
+     .data   : KARIŞIK! 8 byte insert var:
+               0x010Fxxxx..0x01175xxx bölgesi = +0x1000
+               0x01176xxx bölgesi = +0x1000 (bazı) veya +0x1008 (bazı)
+               Her adres ayrı doğrulandı, aşağıda belirtildi.
+     .text   : DEĞİŞMEDİ (tek istisna: KO_MYINFO_FUNC +0x20)
+               KO_AES_CRYPT_FUNC bölgesi yeniden yapılandırıldı
 
-   IMPORTANT: SEH prologue tüm major fonksiyonlara eklendi.
-     Stolen bytes 2602'de geçersiz. KO_RECV_DISPATCH:
-       Eski (2602): 53 55 56 8B 74 24 14  (7 byte)
-       Yeni (2604): 55 8B EC 6A FF         (5 byte, E9 JMP için yeterli)
-     Trampoline bu 5 byte'ı + SEH setup'ı çalıştırmalı.
+   IMPORTANT: Stolen bytes 2604 ile AYNI. SEH prologue'lar değişmedi.
+     KO_RECV_DISPATCH: 55 8B EC 6A FF  (5 byte, E9 JMP için yeterli)
 
    VERIFICATION:
-     ✅ CONFIRMED     — static analysis match
-     ✅ XREF_VERIFIED — XREF count ile doğrulandı
+     ✅ CONFIRMED     — runtime peek ile doğrulandı
+     ✅ XREF_VERIFIED — XREF count ile doğrulandı (güçlü)
      ⚠️  NEED_TEST    — runtime doğrulama gerekli
-     ⚠️  MAYBE        — candidate, netleştirilmedi
    =================================================================== */
+
+   /* ===================================================================
+      STATIC POINTER ADDRESSES  (.data +0x1000)
+      =================================================================== */
+
+      // ✅ CONFIRMED — runtime: 0x30A7CC00 (non-zero, info çalışıyor)
+#define KO_PTR_CHR          0x011761A8   // -> CPlayerMySelf base ptr (+0x1000)
+
+// ✅ XREF_VERIFIED — komşu global'lar (+0x1000)
+#define KO_WORLD_MGR        0x011761A0   // 328 xref
+#define KO_ENTITY_LIST      0x011761A4   // 478 xref
+#define KO_PTR_DLG          0x011761AC   // 124 xref
+#define KO_PTR_PKT          0x011761B0   // 87 xref
+
+// ✅ CONFIRMED — runtime: non-zero (+0x1008!)
+#define KO_SOCK_PTR         0x01177628   // -> CAPISocket* (+0x1008, NOT +0x1000!)
+#define KO_SOCK_PTR2        0x0117762C   // ⚠️ NEED_TEST (+0x1008 assumed, adjacent)
 
 /* ===================================================================
-   STATIC POINTER ADDRESSES  (.data +0x1000)
+   AES ENCRYPTION
    =================================================================== */
 
-// ✅ XREF_VERIFIED — 4432 xref
-#define KO_PTR_CHR          0x011751A8   // -> CPlayerMySelf base ptr
+   // ✅ XREF_VERIFIED — 7 xref (+0x1000)
+#define KO_AES_FLAG         0x011873BA   // AES active (BYTE: 0=off, 1=on)
 
-// ✅ XREF_VERIFIED — komşu global'lar
-#define KO_WORLD_MGR        0x011751A0   // -> World/Camera manager (328 xref)
-#define KO_ENTITY_LIST      0x011751A4   // -> Entity list (478 xref)
-#define KO_PTR_DLG          0x011751AC   // -> Dialog/UI manager (124 xref)
-#define KO_PTR_PKT          0x011751B0   // -> Packet manager (87 xref)
-
-// ✅ CONFIRMED — AES fn body ref
-#define KO_SOCK_PTR         0x01176620   // -> Main socket object ptr (CAPISocket*)
-#define KO_SOCK_PTR2        0x01176624   // -> Secondary socket ptr
-
-/* ===================================================================
-   AES ENCRYPTION  (.data +0x1000, .rdata +0x1000)
-   =================================================================== */
-
-// ✅ XREF_VERIFIED — 7 xref
-#define KO_AES_FLAG         0x011863BA   // AES active (BYTE: 0=off, 1=on)
-
-// ✅ XREF_VERIFIED — 5 xref
-#define KO_AES_IV           0x011863BC   // AES CBC IV (8 bytes, dynamic)
-#define KO_AES_IV2          0x011863DC   // AES CBC IV part 2
+// ✅ XREF_VERIFIED — 5 xref (+0x1000)
+#define KO_AES_IV           0x011873BC   // AES CBC IV (8 bytes, dynamic)
+#define KO_AES_IV2          0x011873DC   // AES CBC IV part 2
 
 // ✅ CONFIRMED — byte pattern match (.rdata +0x1000)
-// AES KEY BYTES 2604 (2602'DEN DEĞİŞMEDİ):
+// AES KEY BYTES (2602'DEN DEĞİŞMEDİ):
 //   32 4E AA 58  BC B3 AE E3  6B C7 4C 56  36 47 34 F2
-#define KO_AES_KEY          0x00F9037C   // AES key (16 bytes, static .rdata)
+#define KO_AES_KEY          0x00F9137C   // AES key (16 bytes, static .rdata)
 
-// ✅ XREF_VERIFIED — 4 xref
-#define KO_PKT_COUNTER      0x011765F9   // Packet counter (BYTE, 1-250, wraps)
-#define KO_PKT_BYPASS_FLAG  0x011765FA   // Skip counter+padding when set
+// ✅ CONFIRMED — runtime: 238 (0xEE), valid range 1-250 (+0x1008!)
+#define KO_PKT_COUNTER      0x01177601   // Packet counter (+0x1008, NOT +0x1000!)
+#define KO_PKT_BYPASS_FLAG  0x01177602   // Skip counter+padding (+0x1008)
 
-// ✅ CONFIRMED — AES fn body ref
-#define KO_AES_COMPRESS_FLAG 0x011863B0  // Compression flag (0=none)
-#define KO_AES_COMPRESS_CTR  0x011863B4  // Compression counter
+// ✅ XREF_VERIFIED (+0x1000)
+#define KO_AES_COMPRESS_FLAG 0x011873B0  // Compression flag
+#define KO_AES_COMPRESS_CTR  0x011873B4  // Compression counter
 
 /* ===================================================================
-   SEND / RECV
+   SEND / RECV  (.text UNCHANGED)
    =================================================================== */
 
-// ✅ CONFIRMED — "[Invalid packet]" XREF fn start
-// ⚠️ NOT: 0x0061E5C0 (2602 adresi) artık JMP thunk → başka fonksiyon.
-//          Gerçek handler 0x0061E5D0.
-// Prologue 2604: 55 8B EC 6A FF 68 82 67 EB 00  (SEH handler: 0x00EB6782)
+   // ✅ CONFIRMED — .text SAME
 #define KO_SEND_FUNC        0x0061E5D0   // Send function
-#define KO_RECV_HANDLER     0x0061E5D0   // Recv packet handler (this=CAPISocket*)
+#define KO_RECV_HANDLER     0x0061E5D0   // Recv packet handler
 
-// ✅ CONFIRMED — "Current Zone" XREF + 0xA0 case
-// Prologue 2604: 55 8B EC 6A FF 68 06 26 ED 00  (SEH handler: 0x00ED2606)
-// ⚠️ STOLEN BYTES DEĞİŞTİ: eski "53 55 56 8B 74 24 14" (7B) GEÇERSİZ.
-//    Yeni 5-byte patch: 55 8B EC 6A FF → E9 rel32 + 1 NOP
+// ✅ CONFIRMED — .text SAME
+// Stolen bytes: 55 8B EC 6A FF → E9 rel32
 #define KO_RECV_DISPATCH    0x00706C60   // recv opcode router
 
-// ✅ XREF_VERIFIED — 43 xref (.text bölge B, delta +0x260)
+// ✅ CONFIRMED — .text SAME
 #define KO_RECV_SUB_DISP    0x0072EAA0   // CGameProcMain::ProcessRecvPacket
 
-// ✅ CONFIRMED — fn body ref
-#define KO_SEND_BUF_PTR     0x01186418   // Send buffer pointer
-#define KO_SEND_BUF_SIZE    0x01186414   // Send buffer capacity
+// ⚠️ NEED_TEST — +0x1000 had 12 xref, +0x1008 had 3
+#define KO_SEND_BUF_PTR     0x01187418   // Send buffer pointer (+0x1000)
+#define KO_SEND_BUF_SIZE    0x01187414   // Send buffer capacity (+0x1000)
 
-// ⚠️ MAYBE — AES bölgesi ikiye bölünmüş olabilir (2602'de unified idi).
-//   0x00834CF0 = daha karmaşık (compression counter kullanıyor) → muhtemelen ENCRYPT
-//   0x00834C30 = daha basit (sadece sendbuf ref) → muhtemelen DECRYPT
-//   Runtime doğrulama: town komutu gönder, hangisi tetikleniyor bak.
-#define KO_AES_CRYPT_FUNC   0x00834CF0   // MAYBE encrypt path (sub esp,0x100 + flag check)
-#define KO_AES_DECRYPT_FUNC 0x00834C30   // MAYBE decrypt path
+// ⚠️ MAYBE — AES bölgesi yeniden yapılandırıldı
+//   AES KEY XREF ile bulunan fn'ler: 0x00834E63, 0x00834F23, 0x00834FF0
+#define KO_AES_CRYPT_FUNC   0x00834F23   // ⚠️ RESTRUCTURED
+#define KO_AES_DECRYPT_FUNC 0x00834E63   // ⚠️ RESTRUCTURED
 
-// ✅ CONFIRMED — prologue 83 EC 5C A1 C0 86 ... (+0x10)
+// ✅ CONFIRMED — .text SAME
 #define KO_AES_CBC_FUNC     0x0061AEB0   // AES-CBC core
 
 /* ===================================================================
    DISCONNECT  (.data +0x1000)
    =================================================================== */
 
-// ✅ XREF_VERIFIED — 4 xref
-#define KO_DISCONNECT_FLAG   0x011765F4   // Disconnect state byte 1
-#define KO_DISCONNECT_REASON 0x011765F5   // Disconnect reason (0=normal,2=error,3=X3)
-#define KO_DISCONNECT_ERR    0x011765F6   // Disconnect error code
+   // ✅ CONFIRMED — runtime: 0 (bağlı = disconnect yok) (+0x1000)
+#define KO_DISCONNECT_FLAG   0x011775F4   // Disconnect state byte 1
+#define KO_DISCONNECT_REASON 0x011775F5   // Disconnect reason
+#define KO_DISCONNECT_ERR    0x011775F6   // Disconnect error code
 
 /* ===================================================================
    X3 / XIGNCODE
    =================================================================== */
 
-// ✅ CONFIRMED — "x3.xem" string XREF fn start
-// Prologue 2604: 55 8B EC 6A FF 68 62 35 ED 00  (SEH handler: 0x00ED3562)
-#define KO_X3_VALIDATOR     0x00710D60   // Checks x3.xem loaded + xhunter1 registry
+   // ✅ CONFIRMED — .text SAME
+#define KO_X3_VALIDATOR     0x00710D60
 
-// ✅ XREF_VERIFIED — 6 xref
-#define KO_X3_CALLBACK      0x011766B0   // X3 challenge callback pointer
+// ✅ CONFIRMED — runtime: 0x0DFF5ED0 (xst MakeResponse ptr) (+0x1000)
+#define KO_X3_CALLBACK      0x011776B0   // X3 challenge callback pointer
 
-// ✅ CONFIRMED — prologue 81 EC 08 06 00 00 (sub esp,0x608) — SEH YOK
-#define KO_MAKERESP_CB      0x00711090   // MakeResponse callback (spinhook/vtkhook hedef)
+// ✅ CONFIRMED — .text SAME, prologue 81 EC 08 06 00 00
+#define KO_MAKERESP_CB      0x00711090   // MakeResponse callback
 
-// ✅ CONFIRMED — prologue 81 EC 28 01 00 00 (sub esp,0x128) — SEH YOK
-#define KO_MAKERESP_CB2     0x00711180   // ko_cb (2nd callback in chain)
-
-// ✅ CONFIRMED — dispatch+0x4CD offset (case 0xA0 branch), +0x10
+// ✅ CONFIRMED — .text SAME
+#define KO_MAKERESP_CB2     0x00711180   // ko_cb (2nd callback)
 #define KO_HB_HANDLER       0x0070712D   // 0xA0 heartbeat packet handler
 
-// ⚠️ NEED_TEST — vtkhook session 50'de runtime-verified, XREF doğrulaması yapılmadı
-#define KO_X3_CB_SLOT       0x011756B0   // DAT: xst.xem MakeResponse ptr (cmd=6 slot)
-#define KO_X3_CB_SLOT_B     0x01172E78   // DAT: ikincil x3 callback slot
-#define KO_X3_INIT_CB       0x011746A8   // DAT: x3 init callback
-#define KO_X3_GUARD_FLAG    0x011745ED   // BYTE: x3 init-complete guard flag
+// ⚠️ NEED_TEST — (+0x1000)
+#define KO_X3_CB_SLOT       0x011766B0   // DAT: xst.xem MakeResponse ptr (cmd=6 slot)
+#define KO_X3_CB_SLOT_B     0x01173E78   // DAT: ikincil x3 callback slot
+#define KO_X3_INIT_CB       0x011756A8   // DAT: x3 init callback
+#define KO_X3_GUARD_FLAG    0x011755ED   // BYTE: x3 init-complete guard flag
 
-// ⚠️ NEED_TEST — fixrecv hedef (KO_RECV_DISPATCH öncesi entry)
+// ⚠️ NEED_TEST — .text SAME
 #define KO_RECV_FIX_ADDR    0x00706C50
+#define KO_X3_ISVALID       0x00710740
+#define KO_X3_ERR_CB1       0x00710A80
+#define KO_X3_ERR_CB2       0x00710A90
+#define KO_X3_ERR_CB3       0x00710B10   // ⚠️ may be GONE
+#define KO_X3_ERR_CB4       0x00710B30
 
-// ⚠️ NEED_TEST — X3 internal check/validator functions (2604, unverified)
-#define KO_X3_ISVALID       0x00710740   // x3 validator (patched → MOV EAX,1; RET)
-#define KO_X3_ERR_CB1       0x00710A80   // x3 error code check 1
-#define KO_X3_ERR_CB2       0x00710A90   // x3 error code check 2
-#define KO_X3_ERR_CB3       0x00710B10   // x3 error code check 3
-#define KO_X3_ERR_CB4       0x00710B30   // x3 error code check 4
+// ⚠️ NEED_TEST — x3.xem HMODULE slots (.data +0x1000)
+#define KO_X3_MODULE_SLOT   0x010F6380
+#define KO_X3_ORDINAL1   0x010F6380
+#define KO_X3_ORDINAL1_OLD  0x010F6384
+#define KO_X3_HANDLER_1A    0x010F6388
 
-// ⚠️ NEED_TEST — x3.xem HMODULE slots (KO.exe .data, 2604 active)
-#define KO_X3_MODULE_SLOT   0x010F5380   // x3.xem HMODULE
-#define KO_X3_ORDINAL1      0x010F5384   // x3.xem ordinal 1
-#define KO_X3_HANDLER_1A    0x010F5388   // x3.xem handler 1A
+// ⚠️ NEED_TEST — KoMemMap era (+0x1000)
+#define KO_X3_HMODULE_MM    0x010F7380
+#define KO_X3_ORDINAL1_MM   0x010F7384
+#define KO_X3_HANDLER1A_MM  0x010F7388
 
-// ⚠️ NEED_TEST — x3.xem HMODULE slots (KoMemMap, possibly 2602 era)
-#define KO_X3_HMODULE_MM    0x010f6380   // x3.xem HMODULE (KoMemMap snapshot)
-#define KO_X3_ORDINAL1_MM   0x010f6384
-#define KO_X3_HANDLER1A_MM  0x010f6388
+// ✅ XREF_VERIFIED — Ghidra confirmed (+0x1000)
+#define KO_X3_HMODULE       0x010F8380   // 12 XREFs ✅
+#define KO_X3_ORD1          0x010F8384   // 8 XREFs ✅
+#define KO_X3_CB_SETOPTION  0x010F8388   // 3 XREFs ✅
+#define KO_X3_CB_STOP       0x01175E78   // 3 XREFs ✅ (+0x1000)
+
+// ✅ CONFIRMED — runtime: 0x596913F0 (x3_base + 0x13F0) (+0x1000)
+#define KO_X3_CB_INIT       0x011776A8   // Init callback (cmd 0x01)
+
+// ✅ CONFIRMED — runtime: 0x0DFF5ED0 (xst MakeResponse) (+0x1000)
+#define KO_X3_CB_MAKERESPONSE 0x011776B0 // MakeResponse callback (cmd 0x06)
+
+// ⚠️ NEED_TEST — (+0x1000)
+#define KO_X3_CB_UNINIT     0x011A78B8   // Uninit callback (cmd 0x02)
 
 /* ===================================================================
-   X3.XEM — Static addresses (x3.xem loads at FIXED base 0x72900000)
-   Source: bigdump_0x72900000 analizi (session 45 + 2604 analizi)
-   x3.xem binary UNCHANGED (SizeOfImage 0x0053D000)
+   X3.XEM — Static addresses (x3.xem binary UNCHANGED)
    =================================================================== */
 
-// x3.xem default BF P-array (statik init sabiti, keyed context değil)
-// ⚠️ WRONG — runtime dump'ta bu adresler .text (kod) gösteriyor.
-//    bigdump raw file offset ≠ VA (FIX=-219 x3.xem kendi sectionlarına uygulanmamış).
-//    vtkhook ile runtime key capture hedeflendiği için kritik değil.
-//    Düzeltme: x3.xem .rdata section RVA'ya bakıp doğru offset hesaplanmalı.
 #define X3_BF_PARRAY_1      0x72AE4A18u  // ⚠️ WRONG VA — needs re-scan
 #define X3_BF_PARRAY_2      0x72AE9348u  // ⚠️ WRONG VA — needs re-scan
-
-// x3.xem BF context vtable (x3.xem@0x72900000 iken sabit)
-#define X3_BF_VTABLE        0x72B06C34u  // vtable ptr değeri (BF ctx objelerinde)
-
-// x3.xem setkey_B (key schedule — 6 caller, heartbeat processing içinde)
-// [ebp+8] = key parametresi
+#define X3_BF_VTABLE        0x72B06C34u
 #define X3_SETKEY_B         0x7293726Cu
-#define X3_CIPHER_SETUP     0x72914E83u  // setkey_B chain'ini çağıran tek fn
-
-// x3.xem tarama aralıkları
+#define X3_CIPHER_SETUP     0x72914E83u
 #define X3_SCAN_L           0x72800000u
 #define X3_SCAN_H           0x72E00000u
 
-/* ===================================================================
-   XST.XEM — IDA static reference addresses
-   UNCHANGED from 2602 (x3.xem binary aynı)
-   ASLR shift = runtime_sbox - XST_IDA_SBOX
-   =================================================================== */
+   /* ===================================================================
+      XST.XEM — IDA static reference addresses — UNCHANGED
+      =================================================================== */
 
 #define XST_IDA_SBOX            0x149D43E0u
 #define XST_IDA_SBOX_VTCHASE    0x14BF43E0u
@@ -218,38 +202,39 @@
 #define XST_DW_RANGE_EXT_L      0x1A000000u
 #define XST_DW_RANGE_EXT_H      0x1C000000u
 
-/* ===================================================================
-   GAME DATA MANAGERS  (.data +0x1000)
-   =================================================================== */
+      /* ===================================================================
+         GAME DATA MANAGERS
+         =================================================================== */
 
-#define KO_ITEM_TABLE_MGR   0x01174FB0   // ItemBasic std::map tree root
-#define KO_ZONE_DATA_MGR    0x01174FA0   // Zone data manager
-#define KO_ITEM_EXT_ARRAY   0x01174FB8   // Item extension table array
+         // ✅ XREF_VERIFIED (+0x1000)
+#define KO_ITEM_TABLE_MGR   0x01175FB0   // 273 XREFs
+#define KO_ZONE_DATA_MGR    0x01175FA0   // 31 XREFs
+#define KO_ITEM_EXT_ARRAY   0x01175FB8   // 196 XREFs
 
-// ✅ XREF_VERIFIED — 4915 xref
-#define KO_GAME_STATE_MGR   0x0117664C   // Game state manager
-#define KO_PTR_SKILL_MGR    0x0117664C   // → game_ptr (same DAT as GAME_STATE_MGR)
-#define KO_UI_STATE         0x01176674   // UI state / Premium flag
+// ✅ CONFIRMED — runtime: non-zero (+0x1008!)
+#define KO_GAME_STATE_MGR   0x01177654   // 4927 XREFs ✅ (+0x1008, NOT +0x1000!)
+#define KO_PTR_SKILL_MGR    0x01177654   // same DAT
+
+// ✅ CONFIRMED — runtime: non-zero (+0x1008!)
+#define KO_UI_STATE         0x0117767C   // 177 XREFs ✅ (+0x1008!)
 
 /* ===================================================================
    FUNCTIONS
    =================================================================== */
 
-// ✅ XREF_VERIFIED — 154 xref to KO_PTR_CHR (delta +0x260, NOT +0x10)
-// Prologue 2604: 55 8B EC 6A FF 68 2E 50 ED 00  (SEH handler: 0x00ED502E)
-#define KO_MYINFO_FUNC      0x00733710   // MsgRecv_MyInfo_All
+   // ✅ XREF_VERIFIED — 154 xref, MOVED +0x20 from 2604
+#define KO_MYINFO_FUNC      0x00733730   // MsgRecv_MyInfo_All
 
-// ✅ CONFIRMED — thiscall prologue 56 8B F1 E8 ... at 0x0062E6E0 (-0x10)
-#define KO_ITEMBASIC_LOOKUP 0x0062E6E0   // ItemBasic lookup by ID
+// ✅ CONFIRMED — .text SAME
+#define KO_ITEMBASIC_LOOKUP 0x0062E6E0
+#define KO_X3_LOADER        0x00712060
 
 /* ===================================================================
    CHARACTER OFFSETS (from KO_PTR_CHR base)
-   2604'te AYNEN GEÇERLİ — struct layout değişmedi.
-   Runtime doğrulama: peek [KO_PTR_CHR+0x6D0] (level)
-                      peek [KO_PTR_CHR+0x6A4] (name, 4B ascii)
+   UNCHANGED — struct layout değişmedi, XREF count doğrulandı.
    =================================================================== */
 
-// --- Identity ---
+   // --- Identity ---
 #define CHR_PLAYER_ID       0x6A0
 #define CHR_NAME            0x6A4
 #define CHR_TARGETID        0x660
@@ -293,10 +278,10 @@
 #define CHR_ZONE_SUB        0xC94
 #define CHR_POS_X_INT       0xC18
 #define CHR_POS_Y_INT       0xC20
-#define CHR_POS_X           0x3CC   // ⚠️ NEED_TEST smooth X (float)
-#define CHR_POS_Y           0x3D0   // ⚠️ NEED_TEST smooth Y (float)
-#define CHR_POS_X_SVR       0x408   // ⚠️ NEED_TEST server X
-#define CHR_POS_Y_SVR       0x40C   // ⚠️ NEED_TEST server Y
+#define CHR_POS_X           0x3CC
+#define CHR_POS_Y           0x3D0
+#define CHR_POS_X_SVR       0x408
+#define CHR_POS_Y_SVR       0x40C
 
 // --- Misc ---
 #define CHR_TITLE           0x764
@@ -306,31 +291,21 @@
 #define CHR_PARTY_MGR       0x20C
 #define CHR_PARTY_ACTIVE    0x105F
 #define CHR_SPEED_MODE      0x1064
-#define CHR_SPEED_MULT      0x1068  // float
+#define CHR_SPEED_MULT      0x1068
 
 // --- Skill Data ---
-#define KO_OFF_SKILL_DATA   0x214   // game_ptr + offset → skill data obj
-#define KO_OFF_SKILL_ARRAY  0x8C    // skill_data + offset → int* array
-#define KO_OFF_SKILL_COUNT  0x90    // skill_data + offset → byte count
+#define KO_OFF_SKILL_DATA   0x214
+#define KO_OFF_SKILL_ARRAY  0x8C
+#define KO_OFF_SKILL_COUNT  0x90
 
 /* ===================================================================
-   PACKET STRUCTURE (2604'te AYNEN GEÇERLİ)
-
-   SEND (AES on):
-     [AA 55]  magic header       (2 bytes, big-endian)
-     [LL LL]  payload length     (2 bytes, big-endian)
-     [CC]     packet counter     = KO_PKT_COUNTER (1 byte)
-     [data..] payload            (N bytes)
-     [55 AA]  magic footer       (2 bytes, big-endian)
-
-   AES KEY (2602'den DEĞİŞMEDİ):
-     32 4E AA 58  BC B3 AE E3  6B C7 4C 56  36 47 34 F2
+   PACKET STRUCTURE (UNCHANGED)
+   AES KEY: 32 4E AA 58  BC B3 AE E3  6B C7 4C 56  36 47 34 F2
    =================================================================== */
 
-/* ===================================================================
-   SKILL POINTS (chain: KO_GAME_STATE_MGR → +0x210 → SkillDlg)
-   UNCHANGED
-   =================================================================== */
+   /* ===================================================================
+      SKILL POINTS — UNCHANGED
+      =================================================================== */
 #define CGP_SKILL_DLG       0x210
 #define SKL_AVAIL           0x160
 #define SKL_TREE1           0x174
@@ -338,10 +313,9 @@
 #define SKL_TREE3           0x17C
 #define SKL_MASTER          0x180
 
-/* ===================================================================
-   INVENTORY (chain: KO_GAME_STATE_MGR → +0x1D8 → InventoryMgr)
-   UNCHANGED
-   =================================================================== */
+      /* ===================================================================
+         INVENTORY — UNCHANGED
+         =================================================================== */
 #define CGP_INV_MGR         0x1D8
 #define INV_EQUIP_START     0x260
 #define INV_BAG_START       0x298
@@ -350,21 +324,40 @@
 #define ITEM_COUNT          0x68
 #define ITEM_DURABILITY     0x6C
 
-/* ===================================================================
-   HOOK — STOLEN BYTES NOTU (2604)
+         /* ===================================================================
+            BANK / WAREHOUSE — UNCHANGED
+            =================================================================== */
+#define DLG_WAREHOUSE           0x22C
+#define WAREHOUSE_FIRST_ITEM    0x114
+#define WAREHOUSE_SLOTS         192
+#define DLG_VIPBANK             0x230
+#define VIPBANK_FIRST_ITEM      0x114
+#define VIPBANK_SLOTS           48
+#define ITEM_UPGRADE_LEVEL      0x00
+#define ITEMBASIC_NAME          0x08
 
-   KO_RECV_DISPATCH @ 0x00706C60:
-     Eski patch (2602, GEÇERSİZ): 53 55 56 8B 74 24 14  (7 byte)
-     Yeni patch (2604):
-       5-byte E9 JMP için: 55 8B EC 6A FF  (ilk 5 byte çal)
-       Trampoline: stolen bytes çalıştır + SEH setup'a dön
-       SEH handler adresi: 0x00ED2606
+            /* ===================================================================
+               HOOK — STOLEN BYTES (2604 ile AYNI)
+               KO_RECV_DISPATCH @ 0x00706C60: 55 8B EC 6A FF 68 F6 37 ED 00
+               KO_MAKERESP_CB: sub esp prologue (SEH yok)
+               =================================================================== */
 
-   SEH prologue'lu tüm major fonksiyonlar:
-     KO_SEND_FUNC       @ 0x0061E5D0  handler 0x00EB6782
-     KO_RECV_DISPATCH   @ 0x00706C60  handler 0x00ED2606
-     KO_X3_VALIDATOR    @ 0x00710D60  handler 0x00ED3562
-     KO_MYINFO_FUNC     @ 0x00733710  handler 0x00ED502E
+               /* ===================================================================
+                  2605 SHIFT SUMMARY
 
-   KO_MAKERESP_CB ve KO_MAKERESP_CB2: sub esp prologue (SEH yok, eski gibi)
-   =================================================================== */
+                  +0x1000 (standard):
+                    KO_PTR_CHR, ENTITY_LIST, PTR_DLG, PTR_PKT, WORLD_MGR
+                    KO_X3_HMODULE, X3_ORD1, X3_CB_STOP, X3_CB_INIT, X3_CALLBACK
+                    KO_AES_FLAG, AES_IV, AES_KEY, AES_COMPRESS_*
+                    KO_ITEM_TABLE_MGR, ZONE_DATA_MGR, ITEM_EXT_ARRAY
+                    KO_DISCONNECT_FLAG/REASON/ERR
+                    KO_SEND_BUF_PTR/SIZE, X3_CB_UNINIT
+
+                  +0x1008 (8-byte insert):
+                    KO_SOCK_PTR           0x01176620 → 0x01177628
+                    KO_GAME_STATE_MGR     0x0117664C → 0x01177654
+                    KO_PTR_SKILL_MGR      (= GAME_STATE_MGR)
+                    KO_UI_STATE            0x01176674 → 0x0117767C
+                    KO_PKT_COUNTER        0x011765F9 → 0x01177601
+                    KO_PKT_BYPASS_FLAG    0x011765FA → 0x01177602
+                  =================================================================== */
