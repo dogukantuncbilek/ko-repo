@@ -1,10 +1,24 @@
 #pragma once
 /* ===================================================================
    KOAddresses.h — Knight Online Pointer & Offset Table
-   Version: 2614
-   Source:  Ghidra static analysis of UNPACKED KnightOnLine.exe v2614
-            (re-anchor pass, 2026-06-25). Rehber: RENotes/REBASELINE_GUIDE.md
+   Version: 2615
+   Source:  Ghidra static analysis of UNPACKED KnightOnLine.exe v2615
+            (re-anchor pass, 2026-07-02, Fable 5). Rehber: RENotes/REBASELINE_GUIDE.md
    ===================================================================
+
+   ⭐ v2614 → v2615 DELTA (Ghidra decompile doğrulanmış, 2026-07-02 — ÇOK küçük patch):
+     .text  : neredeyse SABİT (.text sonu 0xf8bfdd → 0xf8ba3d). TÜM bot-kritik fn AYNI:
+              send 0x6fd6c0, crypt 0x8d1580, recv 0x7af000, MyInfo 0x7f53d0/writer 0x83c550,
+              X3 loader 0x7a6980, crypto wrap/CRC32/XOR 0x4cd460/4a0/3e0.
+     .data  : base SABİT 0x10dc000. Cluster ÇOĞU sabit AMA CHR slot PERMUTE:
+              ⚠️ KO_PTR_CHR 0x01105840 → 0x01105834 (-0xC) — MyInfo Race@0x6c0 ile DOĞRULANDI
+              (2613'teki 0x834 slot'una geri döndü). DLG 0x8fc / ITEM_BASIC 0x804 / SYMBOLMGR
+              0x8f4 DEĞİŞMEDİ. Crypto state kaydı: ENABLE 0x11066f8→0x11066f0, COUNTER
+              0x11066d0→0x11066ec, CIPHER_BUF 0x121d578→0x121d588, SEND_BUF 0x120f92c→0x120f93c,
+              DISCONNECT_FLAG 0x110575c→0x1105863.
+     struct : CHR_* offset'leri DEĞİŞMEDİ (Race 0x6c0/Nation 0x6c4/Job 0x6cc MyInfo ile teyit).
+     ⚠️ Kalan ⚠️ cluster pointer'lar (UIMGR/HACK/MODULES/tablolar/engine singletonları) v2615'te
+        RE-VERIFY EDİLMEDİ; CHR dışında cluster stabil göründüğü için muhtemelen aynı → runtime peek.
 
    ⭐ v2613 → v2614 DELTA (DOĞRULANMIŞ):
      .text  : +~0xA000 büyüdü (.text sonu 0xf81abd → 0xf8bfdd).
@@ -41,8 +55,8 @@
 // ⚠️⚠️ CLUSTER PERMUTE UYARISI: 2613→2614'te bu cluster slot'ları SADECE +0xB000 kaymadı,
 //   PERMUTE oldu (player 2613'te 0x834 slot'undaydı, 2614'te 0x840'a taşındı). Forum cross-check
 //   ile yakalandı. Aşağıda ✅ = decompile/forum DOĞRULANMIŞ; ⚠️ = +0xB000 hesaplandı, GÜVENİLMEZ → verify.
-#define KO_PTR_CHR              0x01105840   // ✅ CPlayerMySelf (FORUM + FUN_007e9660: +0xc90=zone,+0x660=target,+0x134=state)
-#define KO_ENTITY_LIST          0x00000000   // ❓ CPlayerOtherMgr — eski 0x840 aslında CHR'di! Re-derive gerek (cluster permuted)
+#define KO_PTR_CHR              0x01105834   // ✅ v2615 CPlayerMySelf (MyInfo FUN_007f53d0: [0x1b0]=Race@0x6c0 teyit) (was 2614 0x1105840, -0xC PERMUTE)
+#define KO_ENTITY_LIST          0x01105840   // ✅ v2615 CPlayerOtherMgr (0x60 handler FUN_007f3540 + FUN_00791ad0: id→entity std::map @[+0x60]/[+0x68]). CHR 0x834'e taşınınca 0x840 gerçekten entity-list oldu.
 #define KO_PTR_PKT              0x01105914   // ✅ aktif game socket — FORUM + send fn DAT_01105914
 #define KO_PTR_RECV1            0x00000000   // ❓ s_pProcActive — re-derive (cluster permuted, +0xB000 güvenilmez)
 
@@ -126,11 +140,11 @@
 // Crypto state adresleri (v2614 — crypt fn FUN_008d1580 ile doğrulandı)
 #define KO_PKT_COUNTER      0x01101FCC   // ✅ BYTE, 1-250 rolling counter (was 0x10f6fcc)
 #define KO_PKT_BYPASS_FLAG  0x01101FCD   // ✅ BYTE, counter skip flag (was 0x10f6fcd)
-#define KO_CIPHER_COUNTER   0x011066D0   // ✅ DWORD, block/seq counter (was 0x10fb6ec)
-#define KO_CIPHER_ENABLE    0x011066F8   // ✅ DWORD, XOR cipher enable (0=off) (was 0x10fb6f0)
-#define KO_CIPHER_LOCK      0x011E83D8   // ✅ CRITICAL_SECTION (crypt fn EnterCS) (was 0x11dd3c8)
-#define KO_CIPHER_BUF_PTR   0x0121D578   // ✅ PTR, encrypt/decrypt working buffer (was 0x1212568)
-#define KO_SEND_BUF_PTR     0x0120F92C   // ✅ PTR, final send buffer (AA55/55AA sarmalı) (was 0x120491c)
+#define KO_CIPHER_COUNTER   0x011066EC   // ✅ v2615 DWORD block/seq ctr (crypt fn DAT_011066ec++) (was 2614 0x11066d0)
+#define KO_CIPHER_ENABLE    0x011066F0   // ✅ v2615 DWORD XOR enable (==0 → plain copy) (was 2614 0x11066f8)
+#define KO_CIPHER_LOCK      0x011E83D8   // ✅ CRITICAL_SECTION (crypt fn EnterCS) DEĞİŞMEDİ
+#define KO_CIPHER_BUF_PTR   0x0121D588   // ✅ v2615 PTR encrypt/decrypt work buf (DAT_0121d588) (was 2614 0x121d578)
+#define KO_SEND_BUF_PTR     0x0120F93C   // ✅ v2615 PTR final send buf AA55/55AA (send fn DAT_0120f93c) (was 2614 0x120f92c)
 #define KO_CIPHER_CONTEXT   0x011E83F0   // ⚠️ CNetCrypto context (lock+0x18; computed) verify
 #define KO_CIPHER_KEY       0x011E8400   // ⚠️ 8 BYTE XOR key (context+0x10; computed) — runtime verify
 #define KO_CRC32_TABLE      0x010EC120   // ⚠️ CRC32 table (cluster +0xB000) NEED_VERIFY
@@ -174,8 +188,8 @@
 /* ===================================================================
    DISCONNECT
    =================================================================== */
-#define KO_DISCONNECT_FLAG  0x0110575C   // ✅ send-error flag (send fn DAT_0110575c) (was 0x10fa85f)
-#define KO_DISCONNECT_ERR   0x011058D8   // ✅ son hata kodu (send fn DAT_011058d8; status DAT_011058d4) (was 0x10fa8d0)
+#define KO_DISCONNECT_FLAG  0x01105863   // ✅ v2615 send-error flag (send fn DAT_01105863) (was 2614 0x110575c)
+#define KO_DISCONNECT_ERR   0x011058D0   // ✅ v2615 son hata kodu (send fn DAT_011058d0; status DAT_011058d4=2) (was 2614 0x11058d8)
 
 /* ===================================================================
    X3 / XIGNCODE  (v2614 — re-anchor gerek; cipher RE yolu, bot-kritik değil)
@@ -250,8 +264,8 @@
 #define CHR_CUR_MP          0xBF0        // ✅
 
 // --- Combat (⚠️ attack/AC ayrımı belirsiz) ---
-#define CHR_ATTACK          0xBC8        // ⚠️ attack/AC alanı NEED_TEST
-#define CHR_DEFENCE         0xBCC        // ⚠️ defence/flags alanı NEED_TEST
+#define CHR_ATTACK          0xC4C        // ✅ v2615 attack (kullanıcı debug log ile doğruladı) (was 0xBC8)
+#define CHR_DEFENCE         0xC54        // ✅ v2615 defence/AC (kullanıcı debug log) (was 0xBCC)
 
 // --- Attributes (base + item-extra interleaved) ---
 #define CHR_STR             0xC24        // ✅ STR base
@@ -265,11 +279,15 @@
 #define CHR_MP_STAT         0xC44        // ✅ MP(CHA) base
 #define CHR_MP_EXTRA        0xC48        // ✅
 
-// --- Gold / StatPt / XP (⚠️ 0xc00-0xc20 dword bloğu — disambiguate edilemedi) ---
-#define CHR_STAT_PT         0x00000000   // ❓ aday 0xBE4 veya 0x724 — NEED_TEST
-#define CHR_GOLD            0x00000000   // ❓ aday 0xBFC veya 0xc00-0xc20 bloğu — NEED_TEST
-#define CHR_MAX_XP          0x00000000   // ❓ aday 0xC00-0xC14 bloğu — NEED_TEST
-#define CHR_CUR_XP          0x00000000   // ❓ aday 0xC00-0xC14 bloğu — NEED_TEST
+// --- Gold / StatPt / XP (✅ v2615 MyInfo writer FUN_0083c550 sıralı yazımlar; base=[0x01105834]) ---
+#define CHR_CUR_XP          0xC00        // ✅ cur exp (int64; writer 0xC00/0xC04) — ReadDWORD low 32bit
+#define CHR_MAX_XP          0xC08        // ✅ max exp (int64; writer 0xC08/0xC0C, tablodan değil paketten)
+#define CHR_GOLD            0xC10        // ✅ nMoney dword (writer, exp int64 çiftinden sonra) — bkz. NOT
+#define CHR_NP              0xC14        // ⚠️ loyalty/NP dword (writer, gold sonrası) NEED_TEST
+#define CHR_STAT_PT         0xC18        // ✅ nStatPoint (writer, MP sonrası / stat bloğu 0xC24 öncesi)
+#define CHR_SKILL_PT        0xC20        // ✅ nSkillPoint (writer, 0xC18'den sonra)
+// NOT: exp int64 çiftinden dolayı gold=0xC10'u canlı doğrula; ihtimal düşük ama gold int64
+//   olarak 0xC08'de olabilir (o zaman maxexp kayar). Ekranki gold ile karşılaştır.
 
 // --- Zone ---
 #define CHR_ZONE            0xC90        // ✅ int zone id (FUN_007e8270 *10==0x1c2)
